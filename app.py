@@ -9,7 +9,7 @@ import googleapiclient.http
 app = Flask(__name__)
 app.secret_key = 'YOUR_SECRET_KEY'  # Replace with a secure key
 
-# For development only – allows HTTP (remove in production)
+# For development only – allows HTTP (remove for production)
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 # Google API configuration
@@ -38,7 +38,6 @@ def index():
 
 @app.route('/authorize')
 def authorize():
-    # You can hardcode the redirect URI if needed to ensure consistency:
     redirect_uri = url_for('oauth2callback', _external=True)
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRETS_FILE,
@@ -85,7 +84,7 @@ def get_drive_service():
 
 @app.route('/list_folders')
 def list_folders():
-    """List folders so users can pick one."""
+    """List folders so users can pick one (with checkboxes for bulk actions)."""
     drive_service = get_drive_service()
     if drive_service is None:
         return redirect(url_for('authorize'))
@@ -102,7 +101,7 @@ def list_folders():
 @app.route('/list_files')
 @app.route('/list_files/<folder_id>')
 def list_files(folder_id=None):
-    """List allowed document files, either from root or a specific folder."""
+    """List allowed document files, either from root or a specific folder, with checkboxes."""
     drive_service = get_drive_service()
     if drive_service is None:
         return redirect(url_for('authorize'))
@@ -120,22 +119,13 @@ def list_files(folder_id=None):
     files = results.get('files', [])
     return render_template('files.html', files=files, folder_id=folder_id)
 
-@app.route('/download/<file_id>')
-def download_file(file_id):
-    """Download the file with the given ID."""
-    drive_service = get_drive_service()
-    if drive_service is None:
-        return redirect(url_for('authorize'))
-    
-    # Get file metadata to know the file name
+def download_file_by_id(drive_service, file_id):
+    """Helper function to download a file by its ID."""
     file_meta = drive_service.files().get(fileId=file_id, fields="name, mimeType").execute()
     file_name = file_meta.get('name')
-    
-    # Create a local directory if it doesn't exist
     download_dir = os.path.join('downloads', file_id)
     os.makedirs(download_dir, exist_ok=True)
     file_path = os.path.join(download_dir, file_name)
-    
     request_file = drive_service.files().get_media(fileId=file_id)
     with open(file_path, 'wb') as fh:
         downloader = googleapiclient.http.MediaIoBaseDownload(fh, request_file)
@@ -143,8 +133,54 @@ def download_file(file_id):
         while not done:
             status, done = downloader.next_chunk()
             print(f"Downloading {file_name}: {int(status.progress() * 100)}%")
-    flash(f"Downloaded {file_name} to {file_path}")
+    return file_name
+
+@app.route('/download/<file_id>')
+def download_file(file_id):
+    """Single file download."""
+    drive_service = get_drive_service()
+    if drive_service is None:
+        return redirect(url_for('authorize'))
+    file_name = download_file_by_id(drive_service, file_id)
+    flash(f"Downloaded {file_name}.")
     return redirect(url_for('list_files'))
+
+@app.route('/download_files', methods=['POST'])
+def download_files():
+    """Download selected files (bulk action)."""
+    drive_service = get_drive_service()
+    if drive_service is None:
+        return redirect(url_for('authorize'))
+    selected_files = request.form.getlist('selected_files')
+    download_count = 0
+    for file_id in selected_files:
+        download_file_by_id(drive_service, file_id)
+        download_count += 1
+    flash(f"Downloaded {download_count} file(s).")
+    return redirect(url_for('list_files'))
+
+@app.route('/download_folders', methods=['POST'])
+def download_folders():
+    """Download allowed files from selected folders (bulk action)."""
+    drive_service = get_drive_service()
+    if drive_service is None:
+        return redirect(url_for('authorize'))
+    selected_folders = request.form.getlist('selected_folders')
+    total_files_downloaded = 0
+    for folder_id in selected_folders:
+        query = f"'{folder_id}' in parents and {build_query_for_allowed_files()}"
+        results = drive_service.files().list(
+            q=query,
+            pageSize=100,
+            fields="files(id, name, mimeType)"
+        ).execute()
+        files = results.get('files', [])
+        for file in files:
+            file_id = file['id']
+            download_file_by_id(drive_service, file_id)
+            total_files_downloaded += 1
+    flash(f"Downloaded {total_files_downloaded} file(s) from selected folder(s).")
+    return redirect(url_for('list_folders'))
 
 if __name__ == '__main__':
     app.run(debug=True)

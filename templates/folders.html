@@ -1,19 +1,31 @@
 <!doctype html>
 <html>
   <head>
-    <title>Select Folder</title>
+    <title>Select Folders</title>
+    <script>
+      function toggleSelectAll(source) {
+        checkboxes = document.getElementsByName('selected_folders');
+        for(var i = 0, n = checkboxes.length; i < n; i++) {
+          checkboxes[i].checked = source.checked;
+        }
+      }
+    </script>
   </head>
   <body>
-    <h1>Select a Folder</h1>
-    <ul>
-      <li><a href="{{ url_for('list_files') }}">[Root] All allowed documents</a></li>
+    <h1>Select Folders</h1>
+    <form action="{{ url_for('download_folders') }}" method="POST">
+      <input type="checkbox" onClick="toggleSelectAll(this)" /> Select All<br/><br/>
       {% for folder in folders %}
-        <li>
-          <a href="{{ url_for('list_files', folder_id=folder.id) }}">
-            {{ folder.name }}
-          </a>
-        </li>
+        <div>
+          <input type="checkbox" name="selected_folders" value="{{ folder.id }}">
+          {{ folder.name }} &nbsp;
+          <!-- Link to view files within this folder -->
+          <a href="{{ url_for('list_files', folder_id=folder.id) }}">View Files</a>
+        </div>
       {% endfor %}
-    </ul>
+      <br/>
+      <input type="submit" value="Download Selected Folders">
+    </form>
+    <p><a href="{{ url_for('list_files') }}">View files in root</a></p>
   </body>
 </html>
