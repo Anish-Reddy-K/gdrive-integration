@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Allowed Files</title>
+  </head>
+  <body>
+    <h1>Allowed Documents</h1>
+    {% if folder_id %}
+      <p>Showing files in the selected folder. <a href="{{ url_for('list_folders') }}">Back to folders</a></p>
+    {% else %}
+      <p>Showing files from your root folder. <a href="{{ url_for('list_folders') }}">View folders</a></p>
+    {% endif %}
+    <ul>
+      {% for file in files %}
+        <li>
+          {{ file.name }} ({{ file.mimeType }}) -
+          <a href="{{ url_for('download_file', file_id=file.id) }}">Download</a>
+        </li>
+      {% endfor %}
+    </ul>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul>
+          {% for message in messages %}
+            <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+  </body>
+</html>

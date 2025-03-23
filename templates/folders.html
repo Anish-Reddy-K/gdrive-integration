@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Select Folder</title>
+  </head>
+  <body>
+    <h1>Select a Folder</h1>
+    <ul>
+      <li><a href="{{ url_for('list_files') }}">[Root] All allowed documents</a></li>
+      {% for folder in folders %}
+        <li>
+          <a href="{{ url_for('list_files', folder_id=folder.id) }}">
+            {{ folder.name }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  </body>
+</html>
